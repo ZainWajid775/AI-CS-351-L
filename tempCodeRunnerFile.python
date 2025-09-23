@@ -1,0 +1,11 @@
+path = input("Enter the path: ").strip()
+
+# Remove extra slashes
+import re
+normalized = re.sub(r'/+', '/', path)
+
+# Remove trailing slash if not root
+if len(normalized) > 1 and normalized.endswith('/'):
+    normalized = normalized[:-1]
+
+print("Normalized path:", normalized)
