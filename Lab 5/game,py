@@ -1,0 +1,239 @@
+import numpy as np
+import math
+import random
+
+ROW_COUNT = 6
+COLUMN_COUNT = 7
+PLAYER_PIECE = 1
+AI_PIECE = 2
+EMPTY = 0
+
+WINNING_SCORE = 100000000000000
+DRAW_SCORE = 0
+
+def create_board():
+    return np.zeros((ROW_COUNT, COLUMN_COUNT), dtype=int)
+
+def drop_piece(board, row, col, piece):
+    board[row][col] = piece
+
+def is_valid_location(board, col):
+    return board[ROW_COUNT - 1][col] == EMPTY
+
+def get_next_open_row(board, col):
+    for r in range(ROW_COUNT):
+        if board[r][col] == EMPTY:
+            return r
+
+def get_valid_locations(board):
+    valid_locations = []
+    for col in range(COLUMN_COUNT):
+        if is_valid_location(board, col):
+            valid_locations.append(col)
+    return valid_locations
+
+def print_board(board):
+    print("-" * (COLUMN_COUNT * 4 + 1))
+    print(np.flip(board, 0))
+    print("-" * (COLUMN_COUNT * 4 + 1))
+    print(" " + "   ".join(map(str, range(COLUMN_COUNT))))
+
+def winning_move(board, piece):
+    for c in range(COLUMN_COUNT - 3):
+        for r in range(ROW_COUNT):
+            if all(board[r][c + i] == piece for i in range(4)):
+                return True
+
+    for c in range(COLUMN_COUNT):
+        for r in range(ROW_COUNT - 3):
+            if all(board[r + i][c] == piece for i in range(4)):
+                return True
+
+    for c in range(COLUMN_COUNT - 3):
+        for r in range(ROW_COUNT - 3):
+            if all(board[r + i][c + i] == piece for i in range(4)):
+                return True
+
+    for c in range(COLUMN_COUNT - 3):
+        for r in range(3, ROW_COUNT):
+            if all(board[r - i][c + i] == piece for i in range(4)):
+                return True
+    
+    return False
+
+def evaluate_window(window, piece):
+    score = 0
+    opp_piece = PLAYER_PIECE if piece == AI_PIECE else AI_PIECE
+    
+    if window.count(piece) == 4:
+        score += WINNING_SCORE
+    elif window.count(piece) == 3 and window.count(EMPTY) == 1:
+        score += 5
+    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
+        score += 2
+
+    if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
+        score -= 4
+    
+    return score
+
+def score_position(board, piece):
+    score = 0
+
+    center_array = [int(i) for i in list(board[:, COLUMN_COUNT // 2])]
+    center_count = center_array.count(piece)
+    score += center_count * 3
+
+    for r in range(ROW_COUNT):
+        row_array = [int(i) for i in list(board[r,:])]
+        for c in range(COLUMN_COUNT - 3):
+            window = row_array[c:c + 4]
+            score += evaluate_window(window, piece)
+
+    for c in range(COLUMN_COUNT):
+        col_array = [int(i) for i in list(board[:, c])]
+        for r in range(ROW_COUNT - 3):
+            window = col_array[r:r + 4]
+            score += evaluate_window(window, piece)
+
+    for r in range(ROW_COUNT - 3):
+        for c in range(COLUMN_COUNT - 3):
+            window = [board[r + i][c + i] for i in range(4)]
+            score += evaluate_window(window, piece)
+
+    for r in range(ROW_COUNT - 3):
+        for c in range(COLUMN_COUNT - 3):
+            window = [board[r + 3 - i][c + i] for i in range(4)]
+            score += evaluate_window(window, piece)
+
+    return score
+
+def is_terminal_node(board):
+    return winning_move(board, PLAYER_PIECE) or winning_move(board, AI_PIECE) or len(get_valid_locations(board)) == 0
+
+def minimax(board, depth, alpha, beta, maximizing_player):
+    valid_locations = get_valid_locations(board)
+    is_terminal = is_terminal_node(board)
+
+    if depth == 0 or is_terminal:
+        if is_terminal:
+            if winning_move(board, AI_PIECE):
+                return (None, WINNING_SCORE)
+            elif winning_move(board, PLAYER_PIECE):
+                return (None, -WINNING_SCORE)
+            else:
+                return (None, DRAW_SCORE)
+        else:
+            return (None, score_position(board, AI_PIECE))
+
+    if maximizing_player:
+        value = -math.inf
+        column = random.choice(valid_locations)
+        
+        for col in valid_locations:
+            row = get_next_open_row(board, col)
+            temp_board = board.copy()
+            drop_piece(temp_board, row, col, AI_PIECE)
+            
+            new_score = minimax(temp_board, depth - 1, alpha, beta, False)[1]
+            
+            if new_score > value:
+                value = new_score
+                column = col
+            
+            alpha = max(alpha, value)
+            if alpha >= beta:
+                break
+        
+        return (column, value)
+
+    else:
+        value = math.inf
+        column = random.choice(valid_locations)
+        
+        for col in valid_locations:
+            row = get_next_open_row(board, col)
+            temp_board = board.copy()
+            drop_piece(temp_board, row, col, PLAYER_PIECE)
+            
+            new_score = minimax(temp_board, depth - 1, alpha, beta, True)[1]
+            
+            if new_score < value:
+                value = new_score
+                column = col
+            
+            beta = min(beta, value)
+            if alpha >= beta:
+                break
+        
+        return (column, value)
+
+def get_ai_move(board, difficulty_depth):
+    col, minimax_score = minimax(board, difficulty_depth, -math.inf, math.inf, True)
+    return col
+
+def play_game():
+    board = create_board()
+    game_over = False
+    turn = random.randint(PLAYER_PIECE, AI_PIECE)
+
+    AI_DIFFICULTY_DEPTH = 5
+    
+    print("\n--- Connect Four (Minimax AI) ---")
+    print(f"AI Difficulty (Search Depth): {AI_DIFFICULTY_DEPTH}")
+    
+    while not game_over:
+        print_board(board)
+
+        if turn == PLAYER_PIECE:
+            col = -1
+            while True:
+                try:
+                    col = int(input(f"Player {PLAYER_PIECE} (Human): Choose a column (0-{COLUMN_COUNT - 1}): "))
+                    if 0 <= col < COLUMN_COUNT and is_valid_location(board, col):
+                        break
+                    else:
+                        print(f"Invalid column. Please choose an available column between 0 and {COLUMN_COUNT - 1}.")
+                except ValueError:
+                    print("Invalid input. Please enter a number.")
+            
+            row = get_next_open_row(board, col)
+            drop_piece(board, row, col, PLAYER_PIECE)
+
+            if winning_move(board, PLAYER_PIECE):
+                print_board(board)
+                print("===================================")
+                print(f"*** Player {PLAYER_PIECE} (Human) WINS! ***")
+                print("===================================")
+                game_over = True
+
+        else:
+            print(f"Player {AI_PIECE} (AI) is thinking...")
+            
+            col = get_ai_move(board, AI_DIFFICULTY_DEPTH)
+            
+            if col is not None:
+                row = get_next_open_row(board, col)
+                drop_piece(board, row, col, AI_PIECE)
+
+                if winning_move(board, AI_PIECE):
+                    print_board(board)
+                    print("===================================")
+                    print(f"*** Player {AI_PIECE} (AI) WINS! ***")
+                    print("===================================")
+                    game_over = True
+            else:
+                game_over = True
+                
+        if not game_over and len(get_valid_locations(board)) == 0:
+            print_board(board)
+            print("===================================")
+            print("*** Game is a Draw! ***")
+            print("===================================")
+            game_over = True
+
+        if not game_over:
+            turn = PLAYER_PIECE if turn == AI_PIECE else AI_PIECE
+
+if __name__ == '__main__':
+    play_game()
